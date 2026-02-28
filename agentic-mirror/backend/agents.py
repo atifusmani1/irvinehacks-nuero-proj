@@ -11,6 +11,8 @@ Model: claude-sonnet-4-20250514 (AGENT.md §14 Rule 1)
 import json
 import logging
 import os
+import re
+from typing import Any
 
 from anthropic import AsyncAnthropic
 from dotenv import load_dotenv
@@ -101,6 +103,109 @@ Now make your argument for Round {round}.
 # Claude Call Wrapper
 # ──────────────────────────────────────────────
 
+_LEADING_BRACKET_RE = re.compile(r"^\s*(\[[^\[\]]*\])\s*")
+
+def _strip_leading_bracket(text: str) -> tuple[str | None, str]:
+    """
+    If text begins with '[...]' (e.g. '[weight: 80%] hello'),
+    return (bracket, remainder). Otherwise (None, text).
+    """
+    m = _LEADING_BRACKET_RE.match(text)
+    if not m:
+        return None, text
+    return m.group(1), text[m.end():]
+
+def _extract_json_object(payload: Any) -> dict:
+    """
+    Extract & parse the first top-level JSON object from:
+      - pure JSON strings
+      - strings with ```json fences``` / prose before/after
+      - already-parsed dicts (returns as-is)
+    """
+    if isinstance(payload, dict):
+        return payload
+    if not isinstance(payload, str):
+        raise ValueError(f"Expected str or dict, got {type(payload)}")
+
+    # Fast path: whole string is JSON
+    try:
+        return json.loads(payload)
+    except json.JSONDecodeError:
+        pass
+
+    # Salvage: find the first balanced {...}
+    start = payload.find("{")
+    if start == -1:
+        raise ValueError("No '{' found; no JSON object present.")
+
+    depth = 0
+    in_string = False
+    escape = False
+
+    for i in range(start, len(payload)):
+        ch = payload[i]
+
+        if in_string:
+            if escape:
+                escape = False
+            elif ch == "\\":
+                escape = True
+            elif ch == '"':
+                in_string = False
+            continue
+
+        if ch == '"':
+            in_string = True
+        elif ch == "{":
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+            if depth == 0:
+                candidate = payload[start : i + 1]
+                return json.loads(candidate)
+
+    raise ValueError("Unbalanced braces; could not extract complete JSON.")
+
+def _normalize_rationalist(parsed: dict) -> dict:
+    """
+    Ensures scores exist for the 4 bias agents, are ints, non-negative,
+    and sum to 100. Also guarantees dominant_agent is valid.
+    """
+    expected = ["loss_aversion", "sunk_cost", "optimism_bias", "status_quo"]
+
+    scores = parsed.get("scores", {})
+    if not isinstance(scores, dict):
+        scores = {}
+
+    clean = {k: int(scores.get(k, 0) or 0) for k in expected}
+    for k in clean:
+        if clean[k] < 0:
+            clean[k] = 0
+
+    total = sum(clean.values())
+    if total == 0:
+        clean = {k: 25 for k in expected}
+        total = 100
+
+    if total != 100:
+        clean = {k: int(round(v * 100 / total)) for k, v in clean.items()}
+        diff = 100 - sum(clean.values())
+
+        dom = parsed.get("dominant_agent")
+        if dom not in expected:
+            dom = max(clean, key=clean.get)
+
+        clean[dom] += diff
+        parsed["dominant_agent"] = dom
+
+    if parsed.get("dominant_agent") not in expected:
+        parsed["dominant_agent"] = max(clean, key=clean.get)
+
+    parsed["scores"] = clean
+    parsed.setdefault("key_phrases", [])
+    parsed.setdefault("rationalist_summary", "")
+    return parsed
+
 async def call_agent(agent_name: str, user_prompt: str) -> str:
     """
     Call Claude with the given agent's system prompt and user message.
@@ -124,26 +229,25 @@ async def call_agent(agent_name: str, user_prompt: str) -> str:
         text = message.content[0].text
 
         if agent_name == "rationalist":
-            parsed = json.loads(text)
-            total = sum(parsed["scores"].values())
-            if total != 100:
-                factor = 100 / total
-                parsed["scores"] = {
-                    k: round(v * factor) for k, v in parsed["scores"].items()
-                }
-                diff = 100 - sum(parsed["scores"].values())
-                if diff != 0:
-                    top = parsed["dominant_agent"]
-                    parsed["scores"][top] += diff
+            # Robustly parse JSON even if wrapped in ```json ... ``` or has extra prose
+            parsed = _extract_json_object(text)
+
+            ''' Debug
+            print("Raw Rationalist Output (text):", text)
+            print("Raw Rationalist Output (parsed):", parsed)
+            '''
+            # guarantees 4 keys + sum to 100 + valid dominant_agent
+            parsed = _normalize_rationalist(parsed)
+
             return json.dumps(parsed)
 
         return text
 
-    except json.JSONDecodeError as e:
+    except (json.JSONDecodeError, ValueError) as e:
         logger.error("Rationalist returned invalid JSON: %s", e)
         return json.dumps({
             "scores": {"loss_aversion": 25, "sunk_cost": 25, "optimism_bias": 25, "status_quo": 25},
-            "dominant_agent": "none",
+            "dominant_agent": "loss_aversion",
             "key_phrases": [],
             "rationalist_summary": "Scoring unavailable — invalid model response.",
         })
@@ -152,7 +256,7 @@ async def call_agent(agent_name: str, user_prompt: str) -> str:
         if agent_name == "rationalist":
             return json.dumps({
                 "scores": {"loss_aversion": 25, "sunk_cost": 25, "optimism_bias": 25, "status_quo": 25},
-                "dominant_agent": "none",
+                "dominant_agent": "loss_aversion",
                 "key_phrases": [],
                 "rationalist_summary": "Scoring unavailable due to API error.",
             })

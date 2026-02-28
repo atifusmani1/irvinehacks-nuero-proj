@@ -1,0 +1,14 @@
+# Agentic Mirror — Backend Dependencies
+# See AGENT.md §4 — Tech Stack (Backend)
+# See AGENT.md §13 — Environment Setup
+
+fastapi
+uvicorn[standard]
+langgraph
+anthropic
+openai
+scikit-learn
+umap-learn
+python-dotenv
+numpy
+pydantic

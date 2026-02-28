@@ -1,0 +1,9 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* AGENT.md §14 Rule 7 — Dark mode only */
+body {
+  background-color: #0A0A0F;
+  color: #E2E8F0;
+}

@@ -169,12 +169,6 @@ export default function ConcernRing({ values = [], selected, onChange }) {
           />
         </svg>
 
-        {/* Center indicator dot */}
-        <div
-          className="absolute left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-white/40"
-          style={{ bottom: (RING_HEIGHT * 2 + 60) / 2 - RING_HEIGHT / 2 - 20 }}
-        />
-
         {/* Labels positioned around the ellipse */}
         {values.map((value, i) => (
           <ConcernLabel

@@ -144,19 +144,6 @@ export default function InputScreen() {
                     {l.char}
                   </motion.span>
                 ))}
-                {/* Blinking cursor */}
-                <motion.span
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: [0, 1, 1, 0] }}
-                  transition={{
-                    duration: 1.0,
-                    delay: 0.15 + TITLE_LETTERS.length * 0.07 + 0.3,
-                    repeat: Infinity,
-                    repeatDelay: 0.2,
-                    times: [0, 0.1, 0.5, 0.6],
-                  }}
-                  className="title-cursor"
-                />
               </h1>
               <motion.p
                 initial={{ opacity: 0 }}

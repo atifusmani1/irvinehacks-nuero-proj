@@ -7,6 +7,9 @@
  * Parses SSE events (DebateRoundEvent and FinalEvent) and
  * updates React state for each round.
  *
+ * Dialogue entries are flattened into a sequential queue so the UI
+ * can step through them one at a time with chat bubbles + camera focus.
+ *
  * AGENT.md §14 Rule 10 — if the stream errors, preserve last valid state.
  */
 
@@ -19,12 +22,58 @@ export function useDebateStream() {
   const [rounds, setRounds] = useState([]);
   const [scores, setScores] = useState({});
   const [dominantAgent, setDominantAgent] = useState("");
-  const [currentSpeaker, setCurrentSpeaker] = useState("");
   const [isDebating, setIsDebating] = useState(false);
   const [finalResult, setFinalResult] = useState(null);
   const [error, setError] = useState(null);
 
+  // ── Dialogue queue ──
+  // Flat list of { agent, text, round } entries in arrival order
+  const [dialogueQueue, setDialogueQueue] = useState([]);
+  // Index into dialogueQueue for the currently displayed chat bubble (null = closed)
+  const [activeDialogueIndex, setActiveDialogueIndex] = useState(null);
+
   const readerRef = useRef(null);
+
+  // Derived: current speaker is whoever's bubble is open
+  const currentSpeaker =
+    activeDialogueIndex != null && dialogueQueue[activeDialogueIndex]
+      ? dialogueQueue[activeDialogueIndex].agent
+      : "";
+
+  /** Advance to the next dialogue entry, or stay on last */
+  const advanceDialogue = useCallback(() => {
+    setDialogueQueue((q) => {
+      setActiveDialogueIndex((prev) => {
+        if (prev == null) return null;
+        const nextIdx = prev + 1;
+        return nextIdx < q.length ? nextIdx : prev;
+      });
+      return q;
+    });
+  }, []);
+
+  /** Go back to the previous dialogue entry */
+  const retreatDialogue = useCallback(() => {
+    setActiveDialogueIndex((prev) => {
+      if (prev == null || prev <= 0) return prev;
+      return prev - 1;
+    });
+  }, []);
+
+  /** Close the chat bubble (camera returns to default) */
+  const closeDialogue = useCallback(() => {
+    setActiveDialogueIndex(null);
+  }, []);
+
+  /** Jump to a specific dialogue index */
+  const goToDialogue = useCallback((index) => {
+    setDialogueQueue((q) => {
+      if (index >= 0 && index < q.length) {
+        setActiveDialogueIndex(index);
+      }
+      return q;
+    });
+  }, []);
 
   /**
    * Start a new debate session.
@@ -38,10 +87,11 @@ export function useDebateStream() {
     setRounds([]);
     setScores({});
     setDominantAgent("");
-    setCurrentSpeaker("");
     setIsDebating(true);
     setFinalResult(null);
     setError(null);
+    setDialogueQueue([]);
+    setActiveDialogueIndex(null);
 
     try {
       const body = { dilemma, bias_overrides: biasOverrides };
@@ -99,7 +149,6 @@ export function useDebateStream() {
             console.error("[SSE] Error event received:", event.message);
             setError(event.message || "Stream error");
             setIsDebating(false);
-            setCurrentSpeaker("");
             readerRef.current = null;
             return;
           }
@@ -108,7 +157,6 @@ export function useDebateStream() {
             console.log("[SSE] Final event received");
             setFinalResult(event);
             setIsDebating(false);
-            setCurrentSpeaker("");
             readerRef.current = null;
             return;
           }
@@ -123,25 +171,41 @@ export function useDebateStream() {
             setScores(event.scores || {});
             setDominantAgent(event.dominant_agent || "");
 
-            // Drip-feed dialogue — highlight each speaker briefly
+            // Flatten dialogue turns into the sequential queue (skip rationalist)
             if (event.dialogue) {
-              for (const turn of event.dialogue) {
-                setCurrentSpeaker(turn.agent);
-                await new Promise((r) => setTimeout(r, 600));
-              }
-              setCurrentSpeaker("");
+              const newEntries = event.dialogue
+                .filter((turn) => turn.agent !== "rationalist")
+                .map((turn) => ({
+                  agent: turn.agent,
+                  text: turn.text,
+                  summary: turn.summary || "",
+                  round: event.round,
+                }));
+
+              setDialogueQueue((prev) => {
+                const prevLen = prev.length;
+                const updated = [...prev, ...newEntries];
+
+                // Auto-open the first new entry if no bubble is currently shown
+                setActiveDialogueIndex((currentIdx) => {
+                  if (currentIdx == null) {
+                    return prevLen; // index of first newly added entry
+                  }
+                  return currentIdx; // keep current bubble open
+                });
+
+                return updated;
+              });
             }
           }
         }
       }
 
       setIsDebating(false);
-      setCurrentSpeaker("");
       readerRef.current = null;
     } catch (e) {
       setError(String(e));
       setIsDebating(false);
-      setCurrentSpeaker("");
       readerRef.current = null;
     }
   }, []);
@@ -155,7 +219,7 @@ export function useDebateStream() {
       readerRef.current = null;
     }
     setIsDebating(false);
-    setCurrentSpeaker("");
+    setActiveDialogueIndex(null);
   }, []);
 
   return {
@@ -168,5 +232,12 @@ export function useDebateStream() {
     error,
     startDebate,
     stopDebate,
+    // Dialogue queue API
+    dialogueQueue,
+    activeDialogueIndex,
+    advanceDialogue,
+    retreatDialogue,
+    closeDialogue,
+    goToDialogue,
   };
 }

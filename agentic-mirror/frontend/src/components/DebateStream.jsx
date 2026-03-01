@@ -17,8 +17,26 @@ import { AGENT_COLORS, AGENT_DISPLAY_NAMES } from "../utils/agentColors";
  * @param {Object|null} props.finalResult
  * @param {string} props.currentSpeaker
  * @param {string|null} props.error
+ * @param {function} props.onDialogueClick — Called with flat queue index when a dialogue card is clicked
+ * @param {number|null} props.activeDialogueIndex — Currently active dialogue index in the flat queue
  */
-export default function DebateStream({ rounds = [], finalResult = null, currentSpeaker = "", error = null }) {
+export default function DebateStream({ rounds = [], finalResult = null, currentSpeaker = "", error = null, onDialogueClick = null, activeDialogueIndex = null }) {
+  // Build a mapping from (roundIndex, turnIndex) → flat dialogue queue index
+  // Must skip rationalist entries to match the dialogueQueue which filters them out
+  const flatIndexMap = useRef(new Map());
+  useEffect(() => {
+    const map = new Map();
+    let flatIdx = 0;
+    for (let r = 0; r < rounds.length; r++) {
+      const dialogue = rounds[r].dialogue || [];
+      for (let t = 0; t < dialogue.length; t++) {
+        if (dialogue[t].agent === "rationalist") continue;
+        map.set(`${r}-${t}`, flatIdx);
+        flatIdx++;
+      }
+    }
+    flatIndexMap.current = map;
+  }, [rounds]);
   const scrollRef = useRef(null);
 
   // Auto-scroll on new messages
@@ -65,6 +83,9 @@ export default function DebateStream({ rounds = [], finalResult = null, currentS
               const agentColor = AGENT_COLORS[turn.agent] || "#E2E8F0";
               const displayName = AGENT_DISPLAY_NAMES[turn.agent] || turn.agent;
               const isSpeaking = currentSpeaker === turn.agent;
+              const roundIdx = rounds.indexOf(round);
+              const flatIdx = flatIndexMap.current.get(`${roundIdx}-${i}`);
+              const isActive = activeDialogueIndex != null && flatIdx === activeDialogueIndex;
 
               return (
                 <motion.div
@@ -72,12 +93,21 @@ export default function DebateStream({ rounds = [], finalResult = null, currentS
                   initial={{ opacity: 0, x: -8 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ duration: 0.25, delay: i * 0.05 }}
-                  className={`rounded-xl px-4 py-3 transition-all duration-300 ${
-                    isSpeaking
-                      ? "bg-white/[0.08] shadow-lg"
-                      : "bg-white/[0.03]"
+                  onClick={() => onDialogueClick?.(flatIdx)}
+                  className={`rounded-xl px-4 py-3 transition-all duration-300 cursor-pointer hover:bg-white/[0.06] ${
+                    isActive
+                      ? "bg-white/[0.10] ring-1"
+                      : isSpeaking
+                        ? "bg-white/[0.08] shadow-lg"
+                        : "bg-white/[0.03]"
                   }`}
-                  style={isSpeaking ? { boxShadow: `0 0 20px ${agentColor}22` } : {}}
+                  style={
+                    isActive
+                      ? { boxShadow: `0 0 24px ${agentColor}33`, ringColor: agentColor }
+                      : isSpeaking
+                        ? { boxShadow: `0 0 20px ${agentColor}22` }
+                        : {}
+                  }
                 >
                   <div className="flex items-center gap-2 mb-1.5">
                     <div

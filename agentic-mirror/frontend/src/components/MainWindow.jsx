@@ -4,7 +4,9 @@
  * Renders:
  *   - Full-screen Three.js canvas with 5 spheres (4 bias + 1 user center)
  *   - Squiggly glowing connection lines between all spheres
- *   - Slide-up glassy chat overlay at bottom
+ *   - 3D chat bubble above the active speaker with typewriter effect
+ *   - Camera glides to the speaking agent's sphere
+ *   - Slide-up glassy chat overlay at bottom (full log)
  */
 
 import { useState, useEffect, useRef } from "react";
@@ -16,6 +18,8 @@ import AgentSphere from "./AgentSphere";
 import ConnectionLines from "./ConnectionLines";
 import AuroraFloor from "./AuroraFloor";
 import DebateStream from "./DebateStream";
+import ChatBubble from "./ChatBubble";
+import CameraController from "../hooks/useCameraControl";
 import HelpPanel from "./HelpPanel";
 import { useDebateStream } from "../hooks/useDebateStream";
 import { AGENT_COLORS, AGENT_DISPLAY_NAMES } from "../utils/agentColors";
@@ -60,11 +64,36 @@ function SphereLabel({ position, label, color }) {
 }
 
 /** The Three.js scene with all spheres and connections */
-function Scene({ scores, dominantAgent, currentSpeaker, isDebating }) {
+function Scene({
+  scores,
+  dominantAgent,
+  currentSpeaker,
+  isDebating,
+  activeTurn,
+  onCloseBubble,
+  onNextBubble,
+  onPrevBubble,
+  hasNextBubble,
+  hasPrevBubble,
+}) {
+  const orbitRef = useRef();
+
+  // Compute the camera target position (the sphere the bubble is on)
+  const cameraTarget = activeTurn ? SPHERE_POSITIONS[activeTurn.agent] || null : null;
+
   return (
     <>
       {/* Background */}
       <color attach="background" args={['#111118']} />
+
+      {/* Camera controller — lerps camera toward the active speaker */}
+      <CameraController
+        targetPosition={cameraTarget}
+        orbitRef={orbitRef}
+        defaultPosition={[0, 0, 10]}
+        offset={[0, 2.5, 9]}
+        damping={0.04}
+      />
 
       {/* Lighting */}
       <ambientLight intensity={0.15} />
@@ -106,32 +135,53 @@ function Scene({ scores, dominantAgent, currentSpeaker, isDebating }) {
         color="#E2E8F0"
       />
 
-      {/* Bias agent spheres */}
+      {/* Bias agent spheres + chat bubble on active speaker */}
       {["loss_aversion", "sunk_cost", "optimism_bias", "status_quo"].map(
-        (agent) => (
-          <group key={agent}>
-            <AgentSphere
-              position={SPHERE_POSITIONS[agent]}
-              color={AGENT_COLORS[agent]}
-              score={scores[agent] || 25}
-              isDominant={dominantAgent === agent}
-              isDebating={isDebating}
-              isSpeaking={currentSpeaker === agent}
-              agentName={agent}
-            />
-            <SphereLabel
-              position={SPHERE_POSITIONS[agent]}
-              label={AGENT_DISPLAY_NAMES[agent]}
-              color={AGENT_COLORS[agent]}
-            />
-          </group>
-        )
+        (agent) => {
+          const isActiveBubble = activeTurn?.agent === agent;
+          return (
+            <group key={agent}>
+              <AgentSphere
+                position={SPHERE_POSITIONS[agent]}
+                color={AGENT_COLORS[agent]}
+                score={scores[agent] || 25}
+                isDominant={dominantAgent === agent}
+                isDebating={isDebating}
+                isSpeaking={currentSpeaker === agent}
+                agentName={agent}
+              />
+              <SphereLabel
+                position={SPHERE_POSITIONS[agent]}
+                label={AGENT_DISPLAY_NAMES[agent]}
+                color={AGENT_COLORS[agent]}
+              />
+              {/* Chat bubble — only rendered on the active agent */}
+              {isActiveBubble && (
+                <ChatBubble
+                  position={SPHERE_POSITIONS[agent]}
+                  agentName={AGENT_DISPLAY_NAMES[agent]}
+                  color={AGENT_COLORS[agent]}
+                  text={activeTurn.text}
+                  summary={activeTurn.summary}
+                  roundNum={activeTurn.round}
+                  onClose={onCloseBubble}
+                  onNext={onNextBubble}
+                  onPrev={onPrevBubble}
+                  hasNext={hasNextBubble}
+                  hasPrev={hasPrevBubble}
+                  visible={true}
+                />
+              )}
+            </group>
+          );
+        }
       )}
 
       <OrbitControls
+        ref={orbitRef}
         enableZoom={false}
         enablePan={false}
-        autoRotate
+        autoRotate={!activeTurn}
         autoRotateSpeed={0.3}
       />
     </>
@@ -174,7 +224,21 @@ export default function MainWindow() {
     error,
     startDebate,
     stopDebate,
+    dialogueQueue,
+    activeDialogueIndex,
+    advanceDialogue,
+    retreatDialogue,
+    closeDialogue,
+    goToDialogue,
   } = useDebateStream();
+
+  // Compute the active dialogue turn
+  const activeTurn =
+    activeDialogueIndex != null ? dialogueQueue[activeDialogueIndex] || null : null;
+  const hasNextBubble =
+    activeDialogueIndex != null && activeDialogueIndex < dialogueQueue.length - 1;
+  const hasPrevBubble =
+    activeDialogueIndex != null && activeDialogueIndex > 0;
 
   // Auto-start the debate when the component mounts with a dilemma
   // Use a ref to prevent double-calling in Strict Mode
@@ -220,6 +284,12 @@ export default function MainWindow() {
           dominantAgent={dominantAgent}
           currentSpeaker={currentSpeaker}
           isDebating={isDebating}
+          activeTurn={activeTurn}
+          onCloseBubble={closeDialogue}
+          onNextBubble={advanceDialogue}
+          onPrevBubble={retreatDialogue}
+          hasNextBubble={hasNextBubble}
+          hasPrevBubble={hasPrevBubble}
         />
       </Canvas>
 
@@ -246,7 +316,7 @@ export default function MainWindow() {
         )}
       </AnimatePresence>
 
-      {/* Glassy Chat Overlay — slides up from bottom */}
+      {/* Glassy Chat Overlay — slides up from bottom, draggable down, snaps to 75vh */}
       <AnimatePresence>
         {isChatOpen && (
           <motion.div
@@ -254,18 +324,32 @@ export default function MainWindow() {
             animate={{ y: "0%" }}
             exit={{ y: "100%" }}
             transition={{ type: "spring", damping: 30, stiffness: 300 }}
+            drag="y"
+            dragConstraints={{ top: 0, bottom: 0 }}
+            dragElastic={0.3}
+            onDragEnd={(_e, info) => {
+              // If dragged down more than 80px, close the panel
+              if (info.offset.y > 80) {
+                setIsChatOpen(false);
+              }
+            }}
             className="absolute bottom-0 left-0 right-0 z-50
-                       h-[50vh]
+                       h-[75vh]
                        glass-strong glass-texture
                        rounded-t-2xl
                        flex flex-col"
-            style={{ position: 'absolute' }}
+            style={{ position: 'absolute', touchAction: 'none' }}
           >
+            {/* Drag handle */}
+            <div className="flex items-center justify-center w-full pt-3 pb-1 cursor-grab active:cursor-grabbing">
+              <div className="w-10 h-1 rounded-full bg-white/20" />
+            </div>
+
             {/* Down arrow to close */}
             <button
               onClick={() => setIsChatOpen(false)}
-              className="flex items-center justify-center w-full py-3
-                         text-white/50 hover:text-white/80
+              className="flex items-center justify-center w-full py-2
+                         text-white/20 hover:text-white/80
                          transition-colors cursor-pointer"
             >
               <ChevronDown />
@@ -285,6 +369,8 @@ export default function MainWindow() {
                 finalResult={finalResult}
                 currentSpeaker={currentSpeaker}
                 error={error}
+                onDialogueClick={goToDialogue}
+                activeDialogueIndex={activeDialogueIndex}
               />
             </div>
           </motion.div>

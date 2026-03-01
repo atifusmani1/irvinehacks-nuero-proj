@@ -241,6 +241,9 @@ function ConcernLabel({
   return (
     <div
       ref={labelRef}
+      onPointerDown={(e) => {
+        e.stopPropagation();
+      }}
       onClick={(e) => {
         e.stopPropagation();
         onClick();
@@ -253,8 +256,8 @@ function ConcernLabel({
         cursor-pointer
         transition-colors duration-200
         ${isSelected
-          ? "text-white bg-white/[0.08] border border-white/30"
-          : "text-white/50 hover:text-white/70"
+          ? "text-white glass-subtle border-white/25"
+          : "text-white/50 hover:text-white/70 hover:bg-white/[0.06]"
         }
       `}
       style={{ willChange: "transform, opacity" }}

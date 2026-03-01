@@ -7,7 +7,7 @@
  *   - Slide-up glassy chat overlay at bottom
  */
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls, Html } from "@react-three/drei";
@@ -159,6 +159,7 @@ export default function MainWindow() {
   const [isChatOpen, setIsChatOpen] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
+  const hasStartedRef = useRef(false);
 
   const { dilemma, primaryConcern } = location.state || {};
 
@@ -175,8 +176,10 @@ export default function MainWindow() {
   } = useDebateStream();
 
   // Auto-start the debate when the component mounts with a dilemma
+  // Use a ref to prevent double-calling in Strict Mode
   useEffect(() => {
-    if (dilemma) {
+    if (dilemma && !hasStartedRef.current) {
+      hasStartedRef.current = true;
       startDebate(dilemma, primaryConcern);
     }
     return () => stopDebate();

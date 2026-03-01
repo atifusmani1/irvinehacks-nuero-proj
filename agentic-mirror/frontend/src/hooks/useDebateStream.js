@@ -63,7 +63,10 @@ export function useDebateStream() {
 
       while (true) {
         const { value, done } = await reader.read();
-        if (done) break;
+        if (done) {
+          console.log("[SSE] Stream ended");
+          break;
+        }
 
         buffer += decoder.decode(value, { stream: true });
 
@@ -71,21 +74,29 @@ export function useDebateStream() {
         const frames = buffer.split("\n\n");
         buffer = frames.pop() || "";
 
+        console.log(`[SSE] Received ${frames.length} frame(s)`);
+
         for (const frame of frames) {
           const dataLine = frame
             .split("\n")
             .find((l) => l.startsWith("data:"));
-          if (!dataLine) continue;
+          if (!dataLine) {
+            console.log("[SSE] No data line in frame:", frame.substring(0, 50));
+            continue;
+          }
 
           const jsonStr = dataLine.replace(/^data:\s*/, "");
           let event;
           try {
             event = JSON.parse(jsonStr);
-          } catch {
+            console.log("[SSE] Parsed event:", event.type, event.round || "");
+          } catch (err) {
+            console.error("[SSE] JSON parse error:", err, "raw:", jsonStr.substring(0, 100));
             continue;
           }
 
           if (event.type === "error") {
+            console.error("[SSE] Error event received:", event.message);
             setError(event.message || "Stream error");
             setIsDebating(false);
             setCurrentSpeaker("");
@@ -94,6 +105,7 @@ export function useDebateStream() {
           }
 
           if (event.type === "final") {
+            console.log("[SSE] Final event received");
             setFinalResult(event);
             setIsDebating(false);
             setCurrentSpeaker("");
@@ -102,7 +114,12 @@ export function useDebateStream() {
           }
 
           if (event.type === "round") {
-            setRounds((prev) => [...prev, event]);
+            console.log("[SSE] Round event received:", event.round);
+            setRounds((prev) => {
+              const updated = [...prev, event];
+              console.log("[SSE] Rounds updated to:", updated.length, "rounds");
+              return updated;
+            });
             setScores(event.scores || {});
             setDominantAgent(event.dominant_agent || "");
 

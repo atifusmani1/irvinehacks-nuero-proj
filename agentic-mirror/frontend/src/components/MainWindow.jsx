@@ -225,22 +225,23 @@ export default function MainWindow() {
       {/* Chat Button — visible when chat is closed */}
       <AnimatePresence>
         {!isChatOpen && (
-          <motion.button
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 20 }}
-            transition={{ duration: 0.3 }}
-            onClick={() => setIsChatOpen(true)}
-            className="absolute bottom-6 left-1/2 -translate-x-1/2 z-50
-                       px-8 py-3 rounded-full
-                       glass glass-texture
-                       text-white/80 text-sm font-medium
-                       hover:bg-white/[0.12] hover:border-white/25
-                       transition-all duration-300 cursor-pointer"
-            style={{ position: 'absolute' }}
-          >
-            Chat
-          </motion.button>
+          <div className="absolute bottom-6 left-0 right-0 z-50 flex justify-center pointer-events-none">
+            <motion.button
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 20 }}
+              transition={{ duration: 0.3 }}
+              onClick={() => setIsChatOpen(true)}
+              className="pointer-events-auto
+                         px-8 py-3 rounded-full
+                         glass glass-texture
+                         text-white/80 text-sm font-medium
+                         hover:bg-white/[0.12] hover:border-white/25
+                         transition-colors duration-300 cursor-pointer"
+            >
+              Chat
+            </motion.button>
+          </div>
         )}
       </AnimatePresence>
 

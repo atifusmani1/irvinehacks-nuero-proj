@@ -13,6 +13,7 @@ import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Canvas } from "@react-three/fiber";
 import IdleScene from "./IdleScene";
+import ConcernRing from "./ConcernRing";
 
 /**
  * Per-letter config for the title "parallax".
@@ -31,6 +32,7 @@ const TITLE_LETTERS = [
 ];
 
 const VALUES = [
+  { id: "neutral", label: "Neutral" },
   { id: "time", label: "Time" },
   { id: "money", label: "Money" },
   { id: "identity", label: "Identity" },
@@ -58,7 +60,7 @@ function ArrowIcon() {
 
 export default function InputScreen() {
   const [text, setText] = useState("");
-  const [selectedValue, setSelectedValue] = useState(null);
+  const [selectedValue, setSelectedValue] = useState("neutral");
   const [isExiting, setIsExiting] = useState(false);
   const navigate = useNavigate();
   const textareaRef = useRef(null);
@@ -193,7 +195,7 @@ export default function InputScreen() {
               <button
                 onClick={handleSubmit}
                 disabled={!text.trim()}
-                className="absolute right-3 top-4
+                className="absolute right-3 top-1/2 -translate-y-1/2
                            w-10 h-10 rounded-xl
                            flex items-center justify-center
                            glass-subtle
@@ -206,42 +208,17 @@ export default function InputScreen() {
               </button>
             </motion.div>
 
-            {/* Value Picker */}
+            {/* Concern Ring Selector */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.5 }}
-              className="flex flex-col items-center gap-3"
             >
-              <span className="text-xs font-semibold uppercase tracking-wider text-white/30">
-                Primary Concern
-              </span>
-              <div className="flex gap-3">
-              {VALUES.map((value) => {
-                const isSelected = selectedValue === value.id;
-                return (
-                  <motion.button
-                    key={value.id}
-                    onClick={() => setSelectedValue(value.id)}
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.97 }}
-                    className={`
-                      px-5 py-3 rounded-xl
-                      flex items-center gap-2
-                      text-sm font-medium
-                      transition-all duration-300 cursor-pointer
-                      ${
-                        isSelected
-                          ? "glass glass-texture text-white shadow-[0_0_30px_rgba(255,255,255,0.2),0_0_60px_rgba(255,255,255,0.08)] border-white/50"
-                          : "glass-subtle glass-texture text-white/50 hover:bg-white/[0.08] hover:border-white/20 hover:text-white/70"
-                      }
-                    `}
-                  >
-                    <span>{value.label}</span>
-                  </motion.button>
-                );
-              })}
-              </div>
+              <ConcernRing
+                values={VALUES}
+                selected={selectedValue}
+                onChange={setSelectedValue}
+              />
             </motion.div>
 
             {/* Hint text */}

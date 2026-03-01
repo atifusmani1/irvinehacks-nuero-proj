@@ -26,20 +26,20 @@ logger = logging.getLogger(__name__)
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 # ── DEPLOYMENT (Anthropic Claude) ──
-# from anthropic import AsyncAnthropic
-# _client = AsyncAnthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
-# MODEL = "claude-sonnet-4-20250514"
-# _PROVIDER = "anthropic"
+from anthropic import AsyncAnthropic
+_client = AsyncAnthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+MODEL = "claude-sonnet-4-20250514"
+_PROVIDER = "anthropic"
 
 # ── TESTING (Groq Llama 3.3 70B — free, 30 RPM / 14,400 RPD) ──
 # Get a free key at https://console.groq.com
-from openai import AsyncOpenAI
-_client = AsyncOpenAI(
-    base_url="https://api.groq.com/openai/v1",
-    api_key=os.getenv("GROQ_API_KEY"),
-)
-MODEL = "llama-3.3-70b-versatile"
-_PROVIDER = "openai"
+# from openai import AsyncOpenAI
+# _client = AsyncOpenAI(
+#     base_url="https://api.groq.com/openai/v1",
+#     api_key=os.getenv("GROQ_API_KEY"),
+# )
+# MODEL = "llama-3.3-70b-versatile"
+# _PROVIDER = "openai"
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 

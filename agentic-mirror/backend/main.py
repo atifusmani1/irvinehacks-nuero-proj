@@ -31,7 +31,10 @@ app = FastAPI(
 # CORS — allow frontend dev server (Vite on port 5173)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "https://*.vercel.app"],
+    allow_origins=[
+        "http://localhost:5173",
+        "https://parallax-agent.netlify.app",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

@@ -35,6 +35,7 @@ app.add_middleware(
         "http://localhost:5173",
         "https://parallax-agent.netlify.app",
         "https://irvinehacks-nuero-proj-production.up.railway.app",
+        "https://gallant-prosperity-production-d7da.up.railway.app",
     ],
     allow_credentials=True,
     allow_methods=["*"],

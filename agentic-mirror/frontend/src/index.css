@@ -82,6 +82,58 @@ body {
 }
 
 /* Scrollbar styling for chat overlay */
+/* ── Glass bubble text effect (kept for fallback use) ── */
+.glass-text {
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.95) 0%,
+    rgba(255, 255, 255, 0.6) 35%,
+    rgba(180, 200, 220, 0.4) 60%,
+    rgba(255, 255, 255, 0.7) 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  -webkit-text-stroke: 1px rgba(255, 255, 255, 0.15);
+  text-shadow: none;
+  filter: drop-shadow(0 1px 2px rgba(255, 255, 255, 0.3))
+          drop-shadow(0 4px 12px rgba(0, 0, 0, 0.5))
+          drop-shadow(0 0 30px rgba(255, 255, 255, 0.08));
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+/* ── Title typography — staggered monospace ── */
+
+/* Individual title letter — monospace, staggered baseline */
+.title-letter {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: clamp(3rem, 8vw, 5.5rem);
+  font-weight: 300;
+  color: rgba(255, 255, 255, 0.85);
+  display: inline-block;
+  /* Tight but not collapsed — lets stagger breathe */
+  letter-spacing: -0.04em;
+  margin: 0 0.02em;
+  /* Subtle text shadow — not a glow, just depth */
+  text-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.06),
+    0 0 40px rgba(255, 255, 255, 0.04);
+  /* Each letter can move independently */
+  will-change: transform, opacity;
+}
+
+/* Blinking terminal cursor after the last letter */
+.title-cursor {
+  display: inline-block;
+  width: 2px;
+  height: clamp(2.4rem, 6.5vw, 4.4rem);
+  background: rgba(255, 255, 255, 0.5);
+  margin-left: 0.15em;
+  vertical-align: baseline;
+  border-radius: 1px;
+}
+
 ::-webkit-scrollbar {
   width: 4px;
 }

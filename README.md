@@ -236,3 +236,4 @@ cd agentic-mirror/backend
 python test_agents_demo.py      # Single round, 5 API calls, ~$0.01
 python test_full_debate.py      # Full 3-round debate, 16 API calls, ~$0.04
 ```
+
